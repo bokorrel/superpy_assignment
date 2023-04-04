@@ -1,0 +1,60 @@
+USAGE GUIDE
+
+# INFO
+To check the purpose of the superpy tool and its available arguments use:
+python super.py --help
+
+To find more information about a specific argument (e.g. 'report') use:
+python super.py report --help
+
+# SET UP
+To use the superpy tool, first install all required modules from the requirements.txt file by running the use of:
+pip install -r requirements.txt
+
+The tool has its own conception of what day it is. You can set its date with the use of:
+python super.py --set-time 2023-03-20      
+
+If you don't set the date before running any other command, the tool will set an internal date itself. 
+It will take the date on which you run the first command.
+
+You can change the tool's internal date of the tool with the use of:
+Adding days to the tool's internal date:
+python super.py --advance-time 2
+
+Taking days from the tool's internal date:
+python super.py --advance-time -2
+
+# ACTIONS
+To buy a product use:
+python super.py buy --product-name orange --price 0.8 --expiration-date 2023-04-30
+There are no limitations on what products to buy.
+
+To sell a product use:
+python super.py sell --product-name orange --price 2
+You can only sell products that are currently in inventory. 
+
+# DATE ARGUMENTS
+The arguments that will follow in the 'Reports' sections of this guide will all contain a date argument. 
+You can freely use a different date argument instead of the ones shown as example. 
+The date arguments you can choose from are:
+--today     > should NOT be followed by any input
+--now       > should NOT be followed by any input
+--yesterday > should NOT be followed by any input
+--date      > should be followed by a date in format: yyyy-mm-dd or yyyy-m-d, or a period in format: yyyy-mm or yyyy-m 
+--period    > should be followed by a period in format: yyyy-mm or yyyy-m
+
+Exception: --period can not be used for 'report' arguments
+Take into account that any date argument will be based on the tool's internal date (stored in 'today.csv').
+
+# REPORTS
+To retrieve a report about the inventory use:
+python super.py report inventory --now
+
+To retrieve a report about the revenue use:
+python super.py report revenue --date 2023-03-30
+
+To retrieve a report about the profit use:
+python super.py report profit --today
+
+To retrieve a chart about the profit use:
+python super.py chart profit --period 2023-02
