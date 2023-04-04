@@ -5,7 +5,8 @@ import csv
 import sys
 import os
 import pandas as pd
-from datetime import datetime ,timedelta, date
+from datetime import datetime ,timedelta
+from datetime import date as d
 from tabulate import tabulate
 from rich.console import Console
 from helpers import create_file, add_row_to_file, remove_row_from_file, get_next_id
@@ -22,67 +23,42 @@ def main():
         error = "Please provide an argument, use '--help' to get a list of valid arguments"
         console.print(":warning:", error, style="red" ) 
         raise ValueError(error)
-    
+
     # before taking any action, check if the tool already has its own internal conception of what day it is, if not set it to today's date
-    if os.path.exists(file_path_today) != True:
-        try:
-            # get current date
-            current_date = date.today()
-            # create file
-            create_file(file_path_today,headers_today)
-            row = [current_date]
-            add_row_to_file(file_path_today,row,headers_today,'w') 
-        except Exception as exc:
-            print('ERROR:',exc)
+    if os.path.exists(file_path_today) != True and argument != '--set-time': # skip this action when the 'set-time' argument is entered
+        # get current date
+        current_date = d.today()
+        # set the date
+        set_time(current_date)            
 
     # also, before taking any action, first check if products have been expired, to keep inventory up to date at all times
     check_expired_products() 
 
     # check if there is a date argument given
-    available_date_arguments = ['--today', '--now', '--yesterday', '--date', '--period'] # see parser
-    try:
-        date_argument = sys.argv[3] 
-    except:
-        date_argument = None
-    if date_argument in available_date_arguments:
+    if '--today' in sys.argv or '--now' in sys.argv:
+        # get current date
+        input_date = get_current_date_from_file()
+        # it is about 1 specific day, so set the start and end of period to this same date
+        period_start = input_date
+        period_end = input_date
+    elif '--yesterday' in sys.argv: 
         today = get_current_date_from_file()
-        if date_argument == '--today' or date_argument == '--now':            
-            input_date = today
+        input_date = today + timedelta(days=-1) 
+        # it is about 1 specific day, so set the start and end of period to this same date
+        period_start = input_date
+        period_end = input_date  
+    elif '--date' in sys.argv: 
+        input_date = args.date 
+        # check if it is a specific date (month + year + day) or a period (month + year)
+        try:
+            # it is a date
+            specific_date = datetime.strptime(input_date, r"%Y-%m-%d").date()
             # it is about 1 specific day, so set the start and end of period to this same date
-            period_start = input_date
-            period_end = input_date
-        elif date_argument == '--yesterday':            
-            input_date = today + timedelta(days=-1) 
-            # it is about 1 specific day, so set the start and end of period to this same date
-            period_start = input_date
-            period_end = input_date
-        elif date_argument == '--date':
-            input_date = args.date  #sys.argv[4]
-            # check if it is a specific date (month + year + day) or a period (month + year)
+            period_start = specific_date
+            period_end = specific_date
+        except:
             try:
-                # it is a date
-                specific_date = datetime.strptime(input_date, r"%Y-%m-%d").date()
-                # it is about 1 specific day, so set the start and end of period to this same date
-                period_start = specific_date
-                period_end = specific_date
-            except:
-                try:
-                    # it is a period
-                    period = datetime.strptime(input_date, r"%Y-%m")
-                    # set first day of the month as start
-                    period_start = datetime(period.year, period.month, 1).date()
-                    # retrieve last day of the month
-                    res = calendar.monthrange(period.year, period.month)
-                    last_day_of_month = res[1]
-                    period_end = datetime(period.year, period.month, last_day_of_month).date()
-                except:
-                    error = "Please provide a valid date/period"
-                    console.print(":warning:", error, style="red" ) 
-                    raise ValueError(error)
-                
-        elif date_argument == '--period':
-            input_date = args.period
-            try:
+                # it is a period
                 period = datetime.strptime(input_date, r"%Y-%m")
                 # set first day of the month as start
                 period_start = datetime(period.year, period.month, 1).date()
@@ -94,6 +70,29 @@ def main():
                 error = "Please provide a valid date/period"
                 console.print(":warning:", error, style="red" ) 
                 raise ValueError(error)
+    elif '--period' in sys.argv:                     
+        input_date = args.period 
+        try:
+            period = datetime.strptime(input_date, r"%Y-%m")
+            # set first day of the month as start
+            period_start = datetime(period.year, period.month, 1).date()
+            # retrieve last day of the month
+            res = calendar.monthrange(period.year, period.month)
+            last_day_of_month = res[1]
+            period_end = datetime(period.year, period.month, last_day_of_month).date()
+        except:
+            error = "Please provide a valid date/period"
+            console.print(":warning:", error, style="red" ) 
+            raise ValueError(error)
+    elif '--set-time' in sys.argv: 
+        input_date = args.set_time
+        # it is about 1 specific day, so set the start and end of period to this same date
+        period_start = input_date
+        period_end = input_date
+    else:
+        input_date = None
+        period_start = None
+        period_end = None
 
     # Define which function matches the argument and call its function
     if argument == 'buy':
@@ -120,6 +119,9 @@ def main():
     elif argument == '--advance-time':
         days = args.advance_time
         console.print( advance_time(days), style="green" )
+    elif argument == '--set-time':
+        days = args.set_time
+        console.print( set_time(period_start), style="green" )
 
     # After every action, check if products have expired, to keep inventory up to date at all times
     check_expired_products()
@@ -134,7 +136,7 @@ file_path_trash = os.path.join(current_dir,'trash.csv')
 file_path_today = os.path.join(current_dir,'today.csv')
 
 # file headers
-headers_buy = ["id", "product_name", "buy_date", "buy_price","expiration_date"]
+headers_buy = ["id", "product_name", "buy_date", "buy_price","expiration_date","bought_date"]
 headers_sell = ["bought_id", "sell_date", "sell_price"]
 headers_inventory = ["bought_id", "product_name", "buy_price", "expiration_date", "bought_date"]
 headers_inventory_report = ["Product Name", "Count", "Buy Price", "Expiration Date"]
@@ -145,6 +147,16 @@ headers_today = ["date"]
 sheet_name_profit_chart = 'Profit'
 
 # FUNCTIONS
+def set_time(date_to_set):
+    # set the internal date for this tool
+    if os.path.exists(file_path_today) != True:
+        # create file
+        create_file(file_path_today,headers_today)
+    # set date in file 
+    row = [date_to_set]
+    add_row_to_file(file_path_today,row,headers_today,'w') # (OVER)WRITE
+    return 'OK'
+       
 def get_current_date_from_file():
     # get current date from file (the internal date)
     with open(file_path_today, 'r', newline='') as csvfile: # READ      
@@ -165,10 +177,13 @@ def advance_time(nr_of_days):
     return 'OK'
 
 def buy(product_name, price, expiration_date):
+    # get current date, this will be the bought date
+    bought_date = get_current_date_from_file()
+
     # create buy row
     bought_id = get_next_id(file_path_bought,'id')
     current_date = get_current_date_from_file()
-    buy_row = [bought_id, product_name, current_date, price, expiration_date]
+    buy_row = [bought_id, product_name, current_date, price, expiration_date, bought_date]
 
     # first create new files if needed
     if bought_id == 1:
@@ -179,7 +194,7 @@ def buy(product_name, price, expiration_date):
     add_row_to_file(file_path_bought,buy_row,headers_buy)
 
     # update inventory
-    inventory_row = [bought_id, product_name, price ,expiration_date, date]
+    inventory_row = [bought_id, product_name, price ,expiration_date, bought_date]
     add_row_to_file(file_path_inventory,inventory_row,headers_inventory)
     return 'OK'
 
@@ -270,7 +285,7 @@ def check_expired_products():
         # no (more) expired products
         return
  
-def get_inventory_report(report_date: date):
+def get_inventory_report(report_date: d):
         # raise an error if report date is in the future, since we do not do inventory predictions
         if report_date > get_current_date_from_file():
             error = "Report dates in the future are not allowed"
@@ -324,7 +339,7 @@ def get_inventory_report(report_date: date):
             empty_table = tabulate(empty_df, headers='keys', tablefmt='psql',showindex=False)
             return empty_table
 
-def get_revenue_report(period_start: date, period_end: date):
+def get_revenue_report(period_start: d, period_end: d):
     # get revenue
     revenue = get_total_revenue(period_start, period_end)
     # generate result based on input dates
@@ -339,27 +354,25 @@ def get_revenue_report(period_start: date, period_end: date):
             result = f"Revenue from {period_start}: {revenue}"
     else:
         # it is a period
-        period = datetime.strptime(period_start, r"%Y-%m-%d")
+        period = datetime.strptime(str(period_start), r"%Y-%m-%d")
         year =  period.year
         month = calendar.month_name[period.month] 
         result = f"Revenue from {month} {year}: {revenue}"        
     return result
 
-def get_total_revenue(period_start: date, period_end: date): 
+def get_total_revenue(period_start: d, period_end: d): 
     revenue = 0
-    try:
+    if os.path.exists(file_path_sold) == True:
         # get sold items within period
         with open(file_path_sold, 'r', newline='') as csvfile:       
             reader = csv.DictReader(csvfile)            
             for row in reader:
                 if str(row['sell_date']) >= str(period_start) and str(row['sell_date']) <= str(period_end):    
                     # get sell price
-                    revenue += float(row['sell_price'])
-    except Exception as exc: 
-        print('ERROR:',exc)        
+                    revenue += float(row['sell_price'])   
     return revenue
 
-def get_total_costs(period_start: date, period_end: date): 
+def get_total_costs(period_start: d, period_end: d): 
     cost = 0
     if os.path.exists(file_path_bought) == True:
         with open(file_path_bought, 'r', newline='') as csvfile_bought:       
@@ -369,13 +382,13 @@ def get_total_costs(period_start: date, period_end: date):
                     cost += float(x['buy_price'])
     return cost
 
-def get_total_profit(period_start: date, period_end: date):
+def get_total_profit(period_start: d, period_end: d):
     revenue = get_total_revenue(period_start, period_end)
     cost = get_total_costs(period_start, period_end)
     profit = revenue - cost
     return round(profit,1)
 
-def get_profit_chart(period_start: date, period_end: date):
+def get_profit_chart(period_start: d, period_end: d):
     # generate dynamic file path
     file_path_profit_chart = os.path.join(current_dir,f'profit chart - {period_start} - {period_end}.xlsx')
 
@@ -447,7 +460,8 @@ def get_profit_chart(period_start: date, period_end: date):
 parser = argparse.ArgumentParser(prog="SuperPy",description='Keeps track of a supermarket inventory.')
 
 # add generic arguments
-parser.add_argument('--advance-time',type = int,help='Adds days to the current date')
+parser.add_argument('--set-time',type=str,help='Set the internal date')
+parser.add_argument('--advance-time',type=int,help='Adds days to the internal date')
 
 # create subparser for underlying argument groups
 subparser = parser.add_subparsers(dest='command')
@@ -475,7 +489,10 @@ command_group.add_argument('--date', type=str, help='Base the report on a specif
 chart_parser = subparser.add_parser('chart',help='Generates a chart')
 chart_parser.add_argument('chart', help='profit', nargs='?', choices=('profit'))
 command_group = chart_parser.add_mutually_exclusive_group()
-command_group.add_argument('--period', type=str, help='Base the report on a specific period')
+command_group.add_argument('--period', type=str, help='Base the chart on a specific period')
+command_group.add_argument('--today','--now', help='Base the chart on todays date', nargs='?')
+command_group.add_argument('--yesterday', help='Base the chart on yesterdays date', nargs='?')
+command_group.add_argument('--date', type=str, help='Base the chart on a specific date or period')
 
 args = parser.parse_args()
 
